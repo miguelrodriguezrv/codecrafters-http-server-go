@@ -62,6 +62,21 @@ func fileEndpoint(w *ResponseWriter, req *HTTPRequest) {
 		directory = "."
 	}
 	parsedFilePath := path.Join(directory, req.URI[6:])
+
+	switch req.Method {
+	case "GET":
+		fileEndpointGET(w, parsedFilePath)
+		return
+	case "POST":
+		fileEndpointPOST(w, req, parsedFilePath)
+		return
+	default:
+		w.WriteStatus(405)
+		w.WriteHeader("Allow", "GET, POST")
+	}
+}
+
+func fileEndpointGET(w *ResponseWriter, parsedFilePath string) {
 	if _, err := os.Stat(parsedFilePath); os.IsNotExist(err) {
 		w.WriteStatus(404)
 		return
@@ -73,9 +88,6 @@ func fileEndpoint(w *ResponseWriter, req *HTTPRequest) {
 		return
 	}
 	defer file.Close()
-
-	w.WriteStatus(200)
-	w.WriteHeader("Content-Type", "application/octet-stream")
 
 	body := make([]byte, 1024)
 	for {
@@ -90,4 +102,23 @@ func fileEndpoint(w *ResponseWriter, req *HTTPRequest) {
 		}
 		w.Write(body[:n])
 	}
+	w.WriteStatus(200)
+	w.WriteHeader("Content-Type", "application/octet-stream")
+}
+
+func fileEndpointPOST(w *ResponseWriter, req *HTTPRequest, parsedFilePath string) {
+	file, err := os.Create(parsedFilePath)
+	if err != nil {
+		w.WriteStatus(500)
+		log.Println("Failed to create file:", err)
+		return
+	}
+	defer file.Close()
+
+	if _, err := file.Write(req.Body); err != nil {
+		log.Println("Failed to write file:", err)
+		w.WriteStatus(500)
+		return
+	}
+	w.WriteStatus(201)
 }
