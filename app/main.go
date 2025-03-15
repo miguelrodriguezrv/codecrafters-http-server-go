@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 )
 
 func main() {
@@ -39,14 +40,21 @@ func handleConn(conn net.Conn) {
 	req := ParseHTTPRequest(string(buf[:n]))
 	fmt.Printf("Got request: %v\n", req)
 
-	var resp HTTPResponse
+	var resp *HTTPResponse
 	if req.URI == "/" {
-		resp = HTTPResponse{
+		resp = &HTTPResponse{
 			Status:       "200",
 			StatusReason: "OK",
 		}
+	} else if len(req.URI) > 6 && strings.HasPrefix(req.URI, "/echo/") {
+		resp = &HTTPResponse{
+			Status:       "200",
+			StatusReason: "OK",
+			Body:         []byte(req.URI[6:]),
+		}
+		resp.AddHeader("Content-Type", "text/plain")
 	} else {
-		resp = HTTPResponse{
+		resp = &HTTPResponse{
 			Status:       "404",
 			StatusReason: "Not Found",
 		}
