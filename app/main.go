@@ -1,71 +1,93 @@
 package main
 
 import (
-	"fmt"
-	"net"
+	"io"
+	"log"
 	"os"
-	"strings"
+	"path"
+)
+
+const (
+	PORT = "4221"
 )
 
 func main() {
-	// You can use print statements as follows for debugging, they'll be visible when running tests.
-	fmt.Println("Logs from your program will appear here!")
+	router := NewRouter()
+	router.HandlePath("/", indexEndpoint)
+	router.HandlePattern("/echo/", echoEndpoint)
+	router.HandlePath("/user-agent", userAgentEndpoint)
+	router.HandlePattern("/files/", fileEndpoint)
 
-	l, err := net.Listen("tcp", "0.0.0.0:4221")
-	if err != nil {
-		fmt.Println("Failed to bind to port 4221")
-		os.Exit(1)
-	}
-
-	for {
-		conn, err := l.Accept()
-		if err != nil {
-			fmt.Println("Error accepting connection: ", err.Error())
-			os.Exit(1)
-		}
-
-		go handleConn(conn)
+	server := NewServer(router, "")
+	if err := server.Start(); err != nil {
+		log.Fatal("Failed to start server:", err)
 	}
 }
 
-func handleConn(conn net.Conn) {
-	defer conn.Close()
-	// Read HTTP request
-	buf := make([]byte, 1024)
-	n, err := conn.Read(buf)
-	if err != nil {
-		fmt.Println("Error reading request: ", err.Error())
+func indexEndpoint(w *ResponseWriter, req *HTTPRequest) {
+	w.WriteStatus(200)
+	w.WriteHeader("Content-Type", "text/plain")
+}
+
+func echoEndpoint(w *ResponseWriter, req *HTTPRequest) {
+	if len(req.URI) < 7 {
+		w.WriteStatus(400)
 		return
 	}
-	req := ParseHTTPRequest(string(buf[:n]))
-	fmt.Printf("Got request: %v\n", req)
+	w.WriteStatus(200)
+	w.WriteHeader("Content-Type", "text/plain")
+	w.Write([]byte(req.URI[6:]))
+}
 
-	var resp *HTTPResponse
-	if req.URI == "/" {
-		resp = &HTTPResponse{
-			Status:       "200",
-			StatusReason: "OK",
-		}
-	} else if len(req.URI) > 6 && strings.HasPrefix(strings.ToLower(req.URI), "/echo/") {
-		resp = &HTTPResponse{
-			Status:       "200",
-			StatusReason: "OK",
-			Body:         []byte(req.URI[6:]),
-		}
-		resp.AddHeader("Content-Type", "text/plain")
-	} else if strings.HasPrefix(strings.ToLower(req.URI), "/user-agent") {
-		userAgent := req.Headers["User-Agent"]
-		resp = &HTTPResponse{
-			Status:       "200",
-			StatusReason: "OK",
-			Body:         []byte(userAgent),
-		}
-		resp.AddHeader("Content-Type", "text/plain")
-	} else {
-		resp = &HTTPResponse{
-			Status:       "404",
-			StatusReason: "Not Found",
+func userAgentEndpoint(w *ResponseWriter, req *HTTPRequest) {
+	userAgent := req.Headers["User-Agent"]
+	w.WriteStatus(200)
+	w.WriteHeader("Content-Type", "text/plain")
+	w.Write([]byte(userAgent))
+}
+
+func fileEndpoint(w *ResponseWriter, req *HTTPRequest) {
+	if len(req.URI) < 7 {
+		w.WriteStatus(400)
+		return
+	}
+	var directory string
+	for i, arg := range os.Args {
+		if arg == "--directory" && i+1 < len(os.Args) {
+			directory = os.Args[i+1]
+			break
 		}
 	}
-	resp.Write(conn)
+	if directory == "" {
+		directory = "."
+	}
+	parsedFilePath := path.Join(directory, req.URI[6:])
+	if _, err := os.Stat(parsedFilePath); os.IsNotExist(err) {
+		w.WriteStatus(404)
+		return
+	}
+	file, err := os.Open(parsedFilePath)
+	if err != nil {
+		w.WriteStatus(500)
+		log.Println("Failed to open file:", err)
+		return
+	}
+	defer file.Close()
+
+	w.WriteStatus(200)
+	w.WriteHeader("Content-Type", "application/octet-stream")
+
+	body := make([]byte, 1024)
+	for {
+		n, err := file.Read(body)
+		if err != nil && err != io.EOF {
+			log.Println("Failed to read file:", err)
+			w.WriteStatus(500)
+			return
+		}
+		if n == 0 {
+			break
+		}
+		w.Write(body[:n])
+	}
 }

@@ -11,12 +11,12 @@ type HTTPRequest struct {
 }
 
 // Parse the request string into an HTTPRequest struct
-func ParseHTTPRequest(request string) HTTPRequest {
+func ParseHTTPRequest(request string) *HTTPRequest {
 	// Split the request string into parts
 	requestParts := strings.Split(request, "\r\n")
 	// Parse the request line
 	parts := strings.Split(requestParts[0], " ")
-	parsedRequest := HTTPRequest{
+	parsedRequest := &HTTPRequest{
 		Method:   parts[0],
 		URI:      parts[1],
 		Protocol: parts[2],
