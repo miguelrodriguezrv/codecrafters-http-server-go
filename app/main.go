@@ -46,11 +46,19 @@ func handleConn(conn net.Conn) {
 			Status:       "200",
 			StatusReason: "OK",
 		}
-	} else if len(req.URI) > 6 && strings.HasPrefix(req.URI, "/echo/") {
+	} else if len(req.URI) > 6 && strings.HasPrefix(strings.ToLower(req.URI), "/echo/") {
 		resp = &HTTPResponse{
 			Status:       "200",
 			StatusReason: "OK",
 			Body:         []byte(req.URI[6:]),
+		}
+		resp.AddHeader("Content-Type", "text/plain")
+	} else if strings.HasPrefix(strings.ToLower(req.URI), "/user-agent") {
+		userAgent := req.Headers["User-Agent"]
+		resp = &HTTPResponse{
+			Status:       "200",
+			StatusReason: "OK",
+			Body:         []byte(userAgent),
 		}
 		resp.AddHeader("Content-Type", "text/plain")
 	} else {
