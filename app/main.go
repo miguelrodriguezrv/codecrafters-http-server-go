@@ -27,44 +27,29 @@ func main() {
 	}
 }
 
-type HTTPResponse struct {
-	Status       string
-	StatusReason string
-	Headers      map[string]string
-	Body         []byte
-}
-
-func (r HTTPResponse) Write(conn net.Conn) error {
-	// Write the status line
-	_, err := conn.Write(fmt.Appendf(nil, "HTTP/1.1 %s %s\r\n", r.Status, r.StatusReason))
-	if err != nil {
-		return err
-	}
-
-	// Write the headers
-	for key, value := range r.Headers {
-		_, err := conn.Write(fmt.Appendf(nil, "%s: %s\r\n", key, value))
-		if err != nil {
-			return err
-		}
-	}
-	// Mark end of headers
-	conn.Write([]byte("\r\n"))
-
-	// Write the body
-	_, err = conn.Write(r.Body)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func handleConn(conn net.Conn) {
 	defer conn.Close()
-	resp := HTTPResponse{
-		Status:       "200",
-		StatusReason: "OK",
+	// Read HTTP request
+	buf := make([]byte, 1024)
+	n, err := conn.Read(buf)
+	if err != nil {
+		fmt.Println("Error reading request: ", err.Error())
+		return
+	}
+	req := ParseHTTPRequest(string(buf[:n]))
+	fmt.Printf("Got request: %v\n", req)
+
+	var resp HTTPResponse
+	if req.URI == "/" {
+		resp = HTTPResponse{
+			Status:       "200",
+			StatusReason: "OK",
+		}
+	} else {
+		resp = HTTPResponse{
+			Status:       "404",
+			StatusReason: "Not Found",
+		}
 	}
 	resp.Write(conn)
 }
