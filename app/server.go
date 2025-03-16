@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strings"
 )
 
 type Server struct {
@@ -61,14 +62,15 @@ func (s *Server) handleConnection(conn net.Conn) {
 }
 
 func handleCompression(encoding string, resp *ResponseWriter) []byte {
-	switch encoding {
-	case "gzip":
-		resp.WriteHeader("Content-Encoding", "gzip")
-		return gzipCompress(resp.Response.Body)
-	case "deflate":
-		resp.WriteHeader("Content-Encoding", "deflate")
-		return deflate(resp.Response.Body)
-	default:
-		return resp.Response.Body
+	for encoding := range strings.SplitSeq(encoding, ", ") {
+		switch encoding {
+		case "gzip":
+			resp.WriteHeader("Content-Encoding", "gzip")
+			return gzipCompress(resp.Response.Body)
+		case "deflate":
+			resp.WriteHeader("Content-Encoding", "deflate")
+			return deflate(resp.Response.Body)
+		}
 	}
+	return resp.Response.Body
 }
