@@ -53,7 +53,22 @@ func (s *Server) handleConnection(conn net.Conn) {
 	resp := NewResponseWriter()
 	handler := s.router.Route(req)
 	handler(resp, req)
+
+	resp.Response.Body = handleCompression(req.Headers["Accept-Encoding"], resp)
 	if _, err = conn.Write(resp.Response.ToBytes()); err != nil {
 		fmt.Println("Error writing response: ", err.Error())
+	}
+}
+
+func handleCompression(encoding string, resp *ResponseWriter) []byte {
+	switch encoding {
+	case "gzip":
+		resp.WriteHeader("Content-Encoding", "gzip")
+		return gzipCompress(resp.Response.Body)
+	case "deflate":
+		resp.WriteHeader("Content-Encoding", "deflate")
+		return deflate(resp.Response.Body)
+	default:
+		return resp.Response.Body
 	}
 }
