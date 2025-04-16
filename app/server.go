@@ -44,20 +44,25 @@ func (s *Server) handleConnection(conn net.Conn) {
 	defer conn.Close()
 	// Read HTTP request
 	buf := make([]byte, 1024)
-	n, err := conn.Read(buf)
-	if err != nil {
-		fmt.Println("Error reading request: ", err.Error())
-		return
-	}
-	req := ParseHTTPRequest(string(buf[:n]))
+	for {
+		n, err := conn.Read(buf)
+		if err != nil {
+			fmt.Println("Error reading request: ", err.Error())
+			return
+		}
+		req := ParseHTTPRequest(string(buf[:n]))
 
-	resp := NewResponseWriter()
-	handler := s.router.Route(req)
-	handler(resp, req)
+		resp := NewResponseWriter()
+		handler := s.router.Route(req)
+		handler(resp, req)
 
-	resp.Response.Body = handleCompression(req.Headers["Accept-Encoding"], resp)
-	if _, err = conn.Write(resp.Response.ToBytes()); err != nil {
-		fmt.Println("Error writing response: ", err.Error())
+		resp.Response.Body = handleCompression(req.Headers["Accept-Encoding"], resp)
+		if _, err = conn.Write(resp.Response.ToBytes()); err != nil {
+			fmt.Println("Error writing response: ", err.Error())
+		}
+		if connHeader, ok := req.Headers["Connection"]; ok && connHeader == "close" {
+			return
+		}
 	}
 }
 
