@@ -44,7 +44,8 @@ func (s *Server) handleConnection(conn net.Conn) {
 	defer conn.Close()
 	// Read HTTP request
 	buf := make([]byte, 1024)
-	for {
+	keepConnOpen := true
+	for keepConnOpen {
 		n, err := conn.Read(buf)
 		if err != nil {
 			fmt.Println("Error reading request: ", err.Error())
@@ -57,11 +58,12 @@ func (s *Server) handleConnection(conn net.Conn) {
 		handler(resp, req)
 
 		resp.Response.Body = handleCompression(req.Headers["Accept-Encoding"], resp)
+		if connHeader, ok := req.Headers["Connection"]; ok && connHeader == "close" {
+			resp.WriteHeader("Connection", "close")
+			keepConnOpen = false
+		}
 		if _, err = conn.Write(resp.Response.ToBytes()); err != nil {
 			fmt.Println("Error writing response: ", err.Error())
-		}
-		if connHeader, ok := req.Headers["Connection"]; ok && connHeader == "close" {
-			return
 		}
 	}
 }
